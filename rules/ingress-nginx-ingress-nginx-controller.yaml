@@ -1,0 +1,74 @@
+groups:
+- name: ingress-nginx
+  rules:
+  - alert: NGINXConfigFailed
+    annotations:
+      description: bad ingress config - nginx config test failed
+      summary: uninstall the latest ingress changes to allow config reloads to resume
+    expr: count(nginx_ingress_controller_config_last_reload_successful == 0) > 0
+    for: 1s
+    labels:
+      severity: critical
+  - alert: NGINXCertificateExpiry
+    annotations:
+      description: ssl certificate(s) will expire in less then a week
+      summary: renew expiring certificates to avoid downtime
+    expr: (avg(nginx_ingress_controller_ssl_expire_time_seconds) by (host) - time())
+      < 604800
+    for: 1s
+    labels:
+      severity: critical
+  - alert: NGINXTooMany500s
+    annotations:
+      description: Too many 5XXs
+      summary: More than 5% of all requests returned 5XX, this requires your attention
+    expr: 100 * ( sum( nginx_ingress_controller_requests{status=~"5.+"} ) / sum(nginx_ingress_controller_requests)
+      ) > 5
+    for: 1m
+    labels:
+      severity: warning
+  - alert: NGINXTooMany400s
+    annotations:
+      description: Too many 4XXs
+      summary: More than 5% of all requests returned 4XX, this requires your attention
+    expr: 100 * ( sum( nginx_ingress_controller_requests{status=~"4.+", status!="401"}
+      ) / sum(nginx_ingress_controller_requests) ) > 5
+    for: 1m
+    labels:
+      severity: warning
+  - alert: NginxHighHttp4xxErrorRate
+    annotations:
+      description: |-
+        Too many HTTP requests with status 4xx (> 5%)
+          VALUE = {{ $value }}
+          LABELS = {{ $labels }}
+      summary: Nginx high HTTP 4xx error rate (instance {{ $labels.instance }})
+    expr: sum(rate(nginx_http_requests_total{status=~"^4.."}[1m])) / sum(rate(nginx_http_requests_total[1m]))
+      * 100 > 5
+    for: 1m
+    labels:
+      severity: critical
+  - alert: NginxHighHttp5xxErrorRate
+    annotations:
+      description: |-
+        Too many HTTP requests with status 5xx (> 5%)
+          VALUE = {{ $value }}
+          LABELS = {{ $labels }}
+      summary: Nginx high HTTP 5xx error rate (instance {{ $labels.instance }})
+    expr: sum(rate(nginx_http_requests_total{status=~"^5.."}[1m])) / sum(rate(nginx_http_requests_total[1m]))
+      * 100 > 5
+    for: 1m
+    labels:
+      severity: critical
+  - alert: NginxLatencyHigh
+    annotations:
+      description: |-
+        Nginx p99 latency is higher than 3 seconds
+          VALUE = {{ $value }}
+          LABELS = {{ $labels }}
+      summary: Nginx latency high (instance {{ $labels.instance }})
+    expr: histogram_quantile(0.99, sum(rate(nginx_http_request_duration_seconds_bucket[2m]))
+      by (host, node, le)) > 3
+    for: 2m
+    labels:
+      severity: warning
